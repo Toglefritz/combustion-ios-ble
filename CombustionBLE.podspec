@@ -10,4 +10,6 @@ Pod::Spec.new do |s|
     s.source_files = 'Sources/**/*.swift'
     s.swift_version = '5.0'
     s.platform     = :ios, '13.0'
+
+    s.dependency 'NordicDFU'
   end
