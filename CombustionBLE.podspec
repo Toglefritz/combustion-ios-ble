@@ -12,5 +12,4 @@ Pod::Spec.new do |s|
     s.platform     = :ios, '13.0'
 
     s.dependency 'NordicDFU'
-    s.dependency 'OrderedCollections'
   end
