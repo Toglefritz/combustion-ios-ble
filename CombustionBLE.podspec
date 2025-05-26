@@ -7,7 +7,7 @@ Pod::Spec.new do |s|
     s.license      = { :type => 'MIT', :file => 'LICENSE' }
     s.author       = { 'Combustion Inc' => 'support@combustion.inc' }
     s.source       = { :git => 'https://github.com/Toglefritz/combustion-ios-ble.git', :tag => '1.0.0' }
-    s.source_files = 'Sources/**/*.swift'
+    s.source_files = 'Sources/**/*.swift', 'Sources/CombustionBLE/**/*.{swift,h,m}'
     s.swift_version = '5.0'
     s.platform     = :ios, '13.0'
 
