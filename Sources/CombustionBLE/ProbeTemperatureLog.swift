@@ -25,20 +25,44 @@ SOFTWARE.
 --*/
 
 import Foundation
-import OrderedCollections
+
+fileprivate struct UniqueDataPointAccumulator {
+    private var set: Set<LoggedProbeDataPoint> = []
+    private var array: [LoggedProbeDataPoint] = []
+
+    var count: Int { array.count }
+
+    subscript(index: Int) -> LoggedProbeDataPoint {
+        return array[index]
+    }
+
+    mutating func append(_ item: LoggedProbeDataPoint) -> (inserted: Bool, memberAfterInsert: LoggedProbeDataPoint) {
+        let (inserted, _) = set.insert(item)
+        if inserted {
+            array.append(item)
+        }
+        return (inserted, item)
+    }
+
+    mutating func removeFirst(_ k: Int) {
+        for i in 0..<k {
+            set.remove(array[i])
+        }
+        array.removeFirst(k)
+    }
+}
 
 public class ProbeTemperatureLog : ObservableObject {
     
     public let sessionInformation: SessionInformation
     
     /// Buffer of logged data points
-    public var dataPointsDict : OrderedDictionary<UInt32, LoggedProbeDataPoint>
+    private var dataPointsDict: [UInt32: LoggedProbeDataPoint] = [:]
+    private var dataPointKeys: [UInt32] = []
     
     /// Ordered array of data points in the buffer
     public var dataPoints : [LoggedProbeDataPoint] {
-        get {
-            return Array(dataPointsDict.values)
-        }
+        return dataPointKeys.compactMap { dataPointsDict[$0] }
     }
     
     /// Approximate start time of the session
@@ -55,11 +79,9 @@ public class ProbeTemperatureLog : ObservableObject {
     
     /// Temporary place for incoming data points to accumulate prior to being inserted into the main
     /// data point dictionary. This prevents unnecesary re-sorting of the overall dictionary.
-    private var dataPointAccumulator : OrderedSet<LoggedProbeDataPoint>
+    private var dataPointAccumulator = UniqueDataPointAccumulator()
     
     init(sessionInfo: SessionInformation) {
-        dataPointsDict = OrderedDictionary<UInt32, LoggedProbeDataPoint>()
-        dataPointAccumulator = OrderedSet<LoggedProbeDataPoint>()
         sessionInformation = sessionInfo
     }
     
@@ -116,9 +138,9 @@ public class ProbeTemperatureLog : ObservableObject {
         
         // Find index of lowest element >= min
         if(!dataPointsDict.isEmpty) {
-            if let min = dataPointsDict.keys.firstIndex(where: { $0 >= sequenceNumbers.lowerBound } ) {
+            if let min = dataPointKeys.firstIndex(where: { $0 >= sequenceNumbers.lowerBound } ) {
                 // Find index of highest element <= max
-                if let max = dataPointsDict.keys.lastIndex(where: { $0 <= sequenceNumbers.upperBound } ) {
+                if let max = dataPointKeys.lastIndex(where: { $0 <= sequenceNumbers.upperBound } ) {
                     
                     records = max-min+1
                 }
@@ -140,6 +162,7 @@ public class ProbeTemperatureLog : ObservableObject {
                 if dataPointsDict[dp.sequenceNum] == nil  {
                     // If the data point isn't already in our set, add it
                     dataPointsDict[dp.sequenceNum] = dp
+                    dataPointKeys.append(dp.sequenceNum)
                     added = true;
                 }
             }
@@ -147,7 +170,7 @@ public class ProbeTemperatureLog : ObservableObject {
             // If any records were added to the buffer, sort it to ensure they appear in the correct
             // order.
             if(added) {
-                dataPointsDict.sort { $0.key < $1.key }
+                dataPointKeys.sort()
             }
             
             // Delete the records in the accumulator that were processed
@@ -185,10 +208,11 @@ public class ProbeTemperatureLog : ObservableObject {
     /// Appends data point to the logged probe data.
     func appendDataPoint(dataPoint: LoggedProbeDataPoint) {
         // Check if new point's sequence number belongs at the end
-        if let lastPoint = dataPointsDict.values.last {
+        if let lastKey = dataPointKeys.last, let lastPoint = dataPointsDict[lastKey] {
             if(dataPoint.sequenceNum == (lastPoint.sequenceNum + 1)) {
                 // If it does, simply add it and it will appear at the end of the ordered collection
                 dataPointsDict[dataPoint.sequenceNum] = dataPoint
+                dataPointKeys.append(dataPoint.sequenceNum)
                 
             } else {
                 // If not, insert it at its appropriate location
@@ -197,6 +221,7 @@ public class ProbeTemperatureLog : ObservableObject {
         } else {
             // If the collection is empty, just add it
             dataPointsDict[dataPoint.sequenceNum] = dataPoint
+            dataPointKeys.append(dataPoint.sequenceNum)
             
             setStartTime(dataPoint: dataPoint)
         }
